@@ -1,0 +1,66 @@
+import numpy as np
+from skimage import io, img_as_float, img_as_ubyte
+from skimage.filters import median
+from skimage.morphology import square
+from skimage import exposure
+import matplotlib.pyplot as plt
+
+def process_images(file_mingas, file_fullgas_template, output_folder, num_images=97, start_index=1259, step=12):
+    """
+    Processes a series of images to calculate the change in Optical Difference (delta-OD),
+    and saves the processed images.
+
+
+    Python Adaptation written by: Eric Martin, 01-16-2024
+    Method adapted from MATLAB: Kevin Mumford, 2009
+
+
+    Parameters:
+    - file_mingas: str, the filename of the minimal gas cloud grayscale image.
+    - file_fullgas_template: str, the template for the full gas cloud grayscale image filenames.
+                             Use '{:04d}' in place of the numeric part, e.g., 'IMG_{:04d}_gray.tif'.
+    - output_folder: str, the directory to save the processed images.
+    - num_images: int, the number of images to process. Default is 97.
+    - start_index: int, the starting index for the full gas cloud images. Default is 1259.
+    - step: int, the step size for the index increment. Default is 12.
+    """
+
+    #---min gas cloud processing
+    B = io.imread(file_mingas)  # read in raw min gas cloud grayscale image
+    Bfilt = img_as_float(median(B, square(10)))  # noise reduction with median filter, convert to double
+    Brefregion = Bfilt[2916:2921, 2460:2465]  # define reference region where saturation is constant for all images
+    Bref = np.mean(Brefregion)  # calculate mean reference region value
+
+    for i in range(num_images):
+        K = start_index + step * i
+        file_fullgas = file_fullgas_template.format(K)  # specify full gas cloud grayscale file name
+        A = io.imread(file_fullgas)  # read in raw full gas cloud grayscale image
+        Afilt = img_as_float(median(A, square(10)))  # noise reduction with median filter, convert to double
+        Arefregion = Afilt[162:672, 162:672]  # define reference region where saturation is constant for all images
+        Aref = np.mean(Arefregion)  # calculate mean reference region value
+        
+        #---calculate delta-OD or subtraction
+        im_subtract = Afilt / Aref - Bfilt / Bref  # straight subtraction
+        delta_OD = np.log10((Afilt / Aref) / (Bfilt / Bref))  # calculate delta_OD using a 'log' transform
+        
+        #---display gas saturation image using matplotlib
+        im_subtract_rescaled = exposure.rescale_intensity(im_subtract, in_range=(0, 0.25))  # rescale image intensity
+        delta_OD_rescaled = exposure.rescale_intensity(delta_OD, in_range=(0, 0.15))  # rescale delta_OD image intensity
+
+        # Display the subtraction image
+        plt.figure()
+        plt.imshow(im_subtract_rescaled, cmap='gray', vmin=0, vmax=0.25)
+        plt.title('Subtraction Image')
+        plt.colorbar()
+        plt.show()
+
+        # Display the delta-OD image
+        plt.figure()
+        plt.imshow(delta_OD_rescaled, cmap='gray', vmin=0, vmax=0.15)
+        plt.title('Delta OD Image')
+        plt.colorbar()
+        plt.show()
+
+        # Save the delta-OD image
+        output_path = f'{output_folder}/BW Cropped {file_fullgas}'
+        io.imsave(output_path, img_as_ubyte(delta_OD_rescaled))
