@@ -5,6 +5,8 @@ from skimage.morphology import square
 from skimage import exposure
 import matplotlib.pyplot as plt
 
+
+
 def process_images(file_mingas, file_fullgas_template, output_folder, num_images=97, start_index=1259, step=12):
     """
     Processes a series of images to calculate the change in Optical Difference (delta-OD),
